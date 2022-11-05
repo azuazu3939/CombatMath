@@ -11,6 +11,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class CombatMath extends JavaPlugin {
     private static final ClassPool cp = ClassPool.getDefault();
@@ -22,11 +23,11 @@ public class CombatMath extends JavaPlugin {
         reload();
     }
 
-    private void queueClass(String name) {
-        queueClass(name, false);
+    private void queueClass(String name, Function<String, byte[]> bytecodeProvider) {
+        queueClass(name, false, bytecodeProvider);
     }
 
-    private void queueClass(String name, boolean bypassServerCheck) {
+    private void queueClass(String name, boolean bypassServerCheck, Function<String, byte[]> bytecodeProvider) {
         if (!bypassServerCheck) {
             try {
                 Class.forName(name.substring(0, name.lastIndexOf('.') + 1) + "MinecraftServer");
@@ -37,7 +38,7 @@ public class CombatMath extends JavaPlugin {
         Class<?> clazz = getLoadedClass(name);
         if (clazz != null) {
             getLogger().info(name + " is already loaded, attempting to redefine the class");
-            byte[] bytecode = rewriteClass(name);
+            byte[] bytecode = bytecodeProvider.apply(name);
             NativeUtil.redefineClasses(new ClassDefinition[]{new ClassDefinition(clazz, bytecode)});
             getLogger().info(name + " has been redefined");
         } else {
@@ -45,7 +46,7 @@ public class CombatMath extends JavaPlugin {
             NativeUtil.registerClassLoadHook((classLoader, cname, redefiningClass, protectionDomain, bytes) -> {
                 if (cname.replace('/', '.').equals(name)) {
                     getLogger().info("Modifying class " + name);
-                    byte[] bytecode = rewriteClass(name);
+                    byte[] bytecode = bytecodeProvider.apply(name);
                     getLogger().info("Modified class " + name);
                     return bytecode;
                 }
@@ -54,11 +55,44 @@ public class CombatMath extends JavaPlugin {
         }
     }
 
-    private static byte[] rewriteClass(String name) {
+    private static byte[] rewriteCombatMathClass(String name) {
         try {
             CtClass cc = cp.get(name);
             cc.defrost();
             cc.getMethod("a", "(FFF)F").setBody(body);
+            return cc.toBytecode();
+        } catch (NotFoundException | CannotCompileException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static byte[] rewriteRangedAttributeClass(
+            String name,
+            String armorAttributeName,
+            String armorToughnessAttributeName,
+            String sanitizeValueMethod,
+            String getNameMethod,
+            String getDefaultMethod,
+            String minField,
+            String maxField
+    ) {
+        try {
+            CtClass cc = cp.get(name);
+            cc.defrost();
+            // sanitizeValue(D)D
+            cc.getMethod(sanitizeValueMethod, "(D)D").setBody(
+                    "{\n" +
+                            "  if (Double.isNaN($1)) {\n" +
+                            "    return this." + getDefaultMethod + "();\n" +
+                            "  } else {\n" +
+                            "    if (this." + getNameMethod + "().equals(\"" + armorAttributeName + "\" || this." + getNameMethod + "().equals(\"" + armorToughnessAttributeName + "\"))) {\n" +
+                            "      return Math.max($1, this." + minField + ");\n" +
+                            "    } else {\n" +
+                            "      return MathHelper.a($1, this." + minField + ", this." + maxField + ");\n"+
+                            "    }\n" +
+                            "  }\n" +
+                            "}"
+            );
             return cc.toBytecode();
         } catch (NotFoundException | CannotCompileException | IOException e) {
             throw new RuntimeException(e);
@@ -83,8 +117,31 @@ public class CombatMath extends JavaPlugin {
                 .replaceAll("\\$toughness", "\\$3")
                 .replaceAll("\\$armor", "\\$2");
         getLogger().info("Using method body: \n" + body);
-        queueClass("net.minecraft.server.v1_15_R1.CombatMath"); // 1.15.2
-        queueClass("net.minecraft.server.v1_16_R3.CombatMath"); // 1.16.5
-        queueClass("net.minecraft.world.damagesource.CombatMath", true); // 1.17+
+
+        // AttributeRanged
+        queueClass("net.minecraft.server.v1_15_R1.AttributeRanged", name -> CombatMath.rewriteRangedAttributeClass(
+                name,
+                "generic.armor",
+                "generic.armorToughness",
+                "a",
+                "getName",
+                "getDefault",
+                "a",
+                "maximum"));
+        // 1.17.1 (I don't know what do I do for 1.18+)
+        queueClass("net.minecraft.world.entity.ai.attributes.AttributeRanged", name -> CombatMath.rewriteRangedAttributeClass(
+                name,
+                "attribute.name.generic.armor",
+                "attribute.name.generic.armor_toughness",
+                "a",
+                "getName",
+                "getDefault",
+                "a",
+                "c"));
+
+        // CombatMath
+        queueClass("net.minecraft.server.v1_15_R1.CombatMath", CombatMath::rewriteCombatMathClass); // 1.15.2
+        queueClass("net.minecraft.server.v1_16_R3.CombatMath", CombatMath::rewriteCombatMathClass); // 1.16.5
+        queueClass("net.minecraft.world.damagesource.CombatMath", true, CombatMath::rewriteCombatMathClass); // 1.17+
     }
 }
