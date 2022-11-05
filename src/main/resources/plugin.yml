@@ -1,0 +1,8 @@
+name: CombatMath
+main: net.azisaba.combatmath.CombatMath
+version: 1.0.0-SNAPSHOT
+api-version: "1.13"
+commands:
+  combatmath:
+    permission: combatmath.command.combatmath
+    description: "Reloads the configuration and classes"

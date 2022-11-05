@@ -1,0 +1,7 @@
+# $damage = $1
+# $armor = $2
+# $armorToughness, $toughness = $3
+body: |
+  {
+    return (float) ($damage * ($damage / ($armor * 0.025 + 1) / ($armorToughness * 0.025 + 1) / $1));
+  }
