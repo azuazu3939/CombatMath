@@ -85,10 +85,10 @@ public class CombatMath extends JavaPlugin {
                             "  if (Double.isNaN($1)) {\n" +
                             "    return this." + getDefaultMethod + "();\n" +
                             "  } else {\n" +
-                            "    if (this." + getNameMethod + "().equals(\"" + armorAttributeName + "\" || this." + getNameMethod + "().equals(\"" + armorToughnessAttributeName + "\"))) {\n" +
+                            "    if (this." + getNameMethod + "().equals(\"" + armorAttributeName + "\") || this." + getNameMethod + "().equals(\"" + armorToughnessAttributeName + "\")) {\n" +
                             "      return Math.max($1, this." + minField + ");\n" +
                             "    } else {\n" +
-                            "      return MathHelper.a($1, this." + minField + ", this." + maxField + ");\n"+
+                            "      return Math.max(this." + minField + ", Math.min($1, this." + maxField + "));\n" +
                             "    }\n" +
                             "  }\n" +
                             "}"
