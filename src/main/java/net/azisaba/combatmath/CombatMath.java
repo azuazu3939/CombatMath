@@ -139,6 +139,17 @@ public class CombatMath extends JavaPlugin {
                 "a",
                 "c"));
 
+        //1.20.4 ~ 1.20.6までは少なくとも動く。
+        queueClass("net.minecraft.world.entity.ai.attributes.AttributeRanged", name -> CombatMath.rewriteRangedAttributeClass(
+                name,
+                "attribute.name.generic.armor",
+                "attribute.name.generic.armor_toughness",
+                "a",
+                "c",
+                "a",
+                "b",
+                "c"));
+
         // CombatMath
         queueClass("net.minecraft.server.v1_15_R1.CombatMath", CombatMath::rewriteCombatMathClass); // 1.15.2
         queueClass("net.minecraft.server.v1_16_R3.CombatMath", CombatMath::rewriteCombatMathClass); // 1.16.5
